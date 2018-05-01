@@ -15,6 +15,12 @@
 #define UNUSED(x) (void)(x)
 
 static void
+debug(const char *str)
+{
+	purple_debug_info(PLUGIN_ID, str);
+}
+
+static void
 delta_login()
 {
 
@@ -35,12 +41,6 @@ delta_list_icon(PurpleAccount *acct, PurpleBuddy *buddy)
 	UNUSED(buddy);
 
 	return "delta";
-}
-
-static void
-debug(const char *str)
-{
-	purple_debug_info(PLUGIN_ID, str);
 }
 
 static PurpleAccountOption *
