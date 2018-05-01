@@ -104,8 +104,8 @@ static void delta_destroy_plugin(PurplePlugin *plugin) {
 static PurplePluginProtocolInfo extra_info =
 {
 	DELTA_PROTOCOL_OPTS,    /* options */
-    NULL,               /* user_splits, initialized in matrixprpl_init() */
-    NULL,               /* protocol_options, initialized in matrixprpl_init() */
+    NULL,               /* user_splits */
+    NULL,               /* protocol_options, initialized in delta_init_plugin() */
     {   /* icon_spec, a PurpleBuddyIconSpec */
         "svg,png,jpg,gif",               /* format */
         0,                               /* min_width */
