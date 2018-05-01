@@ -1,0 +1,11 @@
+---
+Debian 9:
+  stage: build
+  image: debian:stretch
+  script:
+    - apt update
+    - apt install --no-install-recommends -yy build-essential libpurple-dev
+    - make
+  artifacts:
+    paths:
+      - libdelta.so
