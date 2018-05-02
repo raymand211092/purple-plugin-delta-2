@@ -6,11 +6,14 @@
 
 // All from libpurple
 #include <accountopt.h>
+#include <connection.h>
 #include <debug.h>
 #include <notify.h>
 #include <plugin.h>
 #include <prpl.h>
 #include <version.h>
+
+#include "delta-connection.h"
 
 #define UNUSED(x) (void)(x)
 
@@ -20,16 +23,38 @@ debug(const char *str)
 	purple_debug_info(PLUGIN_ID, str);
 }
 
-static void
-delta_login()
+static GList *
+delta_status_types(PurpleAccount *acct)
 {
+	UNUSED(acct);
 
+	GList *types = NULL;
+
+	types = g_list_append(types, purple_status_type_new(PURPLE_STATUS_OFFLINE, "Offline", NULL, TRUE));
+	types = g_list_append(types, purple_status_type_new(PURPLE_STATUS_AVAILABLE, "Online", NULL, TRUE));
+
+	return types;
 }
 
 static void
-delta_close()
+delta_login(PurpleAccount *acct)
 {
+	PurpleConnection *pc = purple_account_get_connection(acct);
 
+	delta_connection_new(pc);
+
+	purple_connection_set_state(pc, PURPLE_CONNECTING);
+	// TODO: attempt to connect!
+
+	pc->flags |= PURPLE_CONNECTION_HTML;
+}
+
+static void
+delta_close(PurpleConnection *pc)
+{
+	// TODO: actually disconnect!
+	purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+	delta_connection_free(pc);
 }
 
 // Below the fold is libpurple plumbing. No, I don't understand it either
@@ -119,7 +144,7 @@ static PurplePluginProtocolInfo extra_info =
     NULL,                                  /* list_emblem */
     NULL,                                  /* status_text */
     NULL,                                  /* tooltip_text */
-    NULL,               /* status_types */
+    delta_status_types,                    /* status_types */
     NULL,                                  /* blist_node_menu */
     NULL,                  /* chat_info */
     NULL,         /* chat_info_defaults */
