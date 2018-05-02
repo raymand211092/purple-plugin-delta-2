@@ -7,21 +7,13 @@
 // All from libpurple
 #include <accountopt.h>
 #include <connection.h>
-#include <debug.h>
 #include <notify.h>
 #include <plugin.h>
 #include <prpl.h>
 #include <version.h>
 
 #include "delta-connection.h"
-
-#define UNUSED(x) (void)(x)
-
-static void
-debug(const char *str)
-{
-	purple_debug_info(PLUGIN_ID, str);
-}
+#include "util.h"
 
 static GList *
 delta_status_types(PurpleAccount *acct)
@@ -41,10 +33,9 @@ delta_login(PurpleAccount *acct)
 {
 	PurpleConnection *pc = purple_account_get_connection(acct);
 
-	delta_connection_new(pc);
 
-	purple_connection_set_state(pc, PURPLE_CONNECTING);
-	// TODO: attempt to connect!
+	delta_connection_new(pc);
+	delta_connection_start_login(pc);
 
 	pc->flags |= PURPLE_CONNECTION_HTML;
 }
@@ -56,8 +47,6 @@ delta_close(PurpleConnection *pc)
 	purple_connection_set_state(pc, PURPLE_DISCONNECTED);
 	delta_connection_free(pc);
 }
-
-// Below the fold is libpurple plumbing. No, I don't understand it either
 
 static const char *
 delta_list_icon(PurpleAccount *acct, PurpleBuddy *buddy)
@@ -97,22 +86,22 @@ delta_init_plugin(PurplePlugin *plugin)
 
 	debug("Starting up\n");
 
+	opts = g_list_prepend(opts, str_opt("Display Name", PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, NULL));
 
-	opts = g_list_prepend(opts, str_opt("Display Name", PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, ""));
-
-	opts = g_list_prepend(opts, str_opt("IMAP Server Host", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, ""));
+	opts = g_list_prepend(opts, str_opt("IMAP Server Host", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, NULL));
 	opts = g_list_prepend(opts, int_opt("IMAP Server Port", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, DEFAULT_IMAP_PORT));
-	opts = g_list_prepend(opts, str_opt("IMAP Username", PLUGIN_ACCOUNT_OPT_IMAP_USER, ""));
+	opts = g_list_prepend(opts, str_opt("IMAP Username", PLUGIN_ACCOUNT_OPT_IMAP_USER, NULL));
+
 
 	// These are pidgin's built-in username & password options
 	// FIXME: it's not super-obvious or pleasant :/
 	// opts = g_list_prepend(opts, str_opt("Email Address", PLUGIN_ACCOUNT_OPT_EMAIL_ADDRESS, ""));
 	// opts = g_list_prepend(opts, pwd_opt("IMAP Password", PLUGIN_ACCOUNT_OPT_IMAP_PASS, ""));
 
-	opts = g_list_prepend(opts, str_opt("SMTP Server Host", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, ""));
+	opts = g_list_prepend(opts, str_opt("SMTP Server Host", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, NULL));
 	opts = g_list_prepend(opts, int_opt("SMTP Server Port", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, DEFAULT_SMTP_PORT));
-	opts = g_list_prepend(opts, str_opt("SMTP Username", PLUGIN_ACCOUNT_OPT_SMTP_USER, ""));
-	opts = g_list_prepend(opts, pwd_opt("SMTP Password", PLUGIN_ACCOUNT_OPT_SMTP_PASS, ""));
+	opts = g_list_prepend(opts, str_opt("SMTP Username", PLUGIN_ACCOUNT_OPT_SMTP_USER, NULL));
+	opts = g_list_prepend(opts, pwd_opt("SMTP Password", PLUGIN_ACCOUNT_OPT_SMTP_PASS, NULL));
 
 	// Not exposed: server_flags, selfstatus, e2ee_enabled
 	// https://deltachat.github.io/api/classmrmailbox__t.html
@@ -120,10 +109,19 @@ delta_init_plugin(PurplePlugin *plugin)
 	extra->protocol_options = g_list_reverse(opts);
 }
 
-static void delta_destroy_plugin(PurplePlugin *plugin) {
+static void
+delta_destroy_plugin(PurplePlugin *plugin) {
 	UNUSED(plugin);
 
 	debug("Shutting down\n");
+}
+
+static gboolean
+delta_offline_message(const PurpleBuddy *buddy)
+{
+	UNUSED(buddy);
+
+	return TRUE;
 }
 
 static PurplePluginProtocolInfo extra_info =
@@ -146,11 +144,11 @@ static PurplePluginProtocolInfo extra_info =
     NULL,                                  /* tooltip_text */
     delta_status_types,                    /* status_types */
     NULL,                                  /* blist_node_menu */
-    NULL,                  /* chat_info */
-    NULL,         /* chat_info_defaults */
+    NULL,                       /* chat_info */
+    NULL,              /* chat_info_defaults */
     delta_login,                           /* login */
     delta_close,                           /* close */
-    NULL,                                  /* send_im */
+    delta_send_im,                         /* send_im */
     NULL,                                  /* set_info */
     NULL,                                  /* send_typing */
     NULL,                                  /* get_info */
@@ -194,7 +192,7 @@ static PurplePluginProtocolInfo extra_info =
     NULL,                                  /* can_receive_file */
     NULL,                                  /* send_file */
     NULL,                                  /* new_xfer */
-    NULL,                                  /* offline_message */
+    delta_offline_message,                 /* offline_message */
     NULL,                                  /* whiteboard_prpl_ops */
     NULL,                                  /* send_raw */
     NULL,                                  /* roomlist_room_serialize */
