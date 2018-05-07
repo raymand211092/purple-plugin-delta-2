@@ -4,8 +4,24 @@ Debian 9:
   image: debian:stretch
   script:
     - apt update
-    - apt install --no-install-recommends -yy build-essential libpurple-dev
+    # libetpan
+    # FIXME: libetpan 1.16 is available in Debian, but we need 1.17+: https://github.com/deltachat/deltachat-core/issues/157
+    # TODO: it can take libcurl as well. Do we need it?
+    - apt install --no-install-recommends -yy build-essential autoconf automake libtool libdb-dev libexpat1-dev libsasl2-dev libssl1.0-dev
+    - cd vendor && tar -xvzf libetpan-1.8.tar.gz && cd libetpan-1.8 && ./autogen.sh && ./configure && make && make install && cd ../..
+    - cp /usr/local/lib/libetpan.so libetpan.so
+    # deltachat-core
+    - apt install --no-install-recommends -yy meson ninja-build pkg-config zlib1g-dev libsqlite3-dev libsasl2-dev libssl1.0-dev libbz2-dev
+    - cd vendor && tar -xvzf deltachat-core-master.tar.gz && cd deltachat-core-master && mkdir builddir && cd builddir && meson && ninja && ninja install && cd ../../..
+    - cp /usr/local/lib/x86_64-linux-gnu/libdeltachat.so libdeltachat.so
+    - cp /usr/local/lib/x86_64-linux-gnu/libnetpgp.so libnetpgp.so
+    # purple-plugin-delta
+    - apt install --no-install-recommends -yy libpurple-dev libsoup2.4-dev libglib2.0-dev
     - make
   artifacts:
     paths:
+      - libetpan.so
+      - libdeltachat.so
+      - libnetpgp.so
       - libdelta.so
+

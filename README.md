@@ -16,10 +16,10 @@ Very basic instructions at present. First, `deltachat-core` isn't packaged, so
 you'll need to build and install it according to
 [these instructions](https://github.com/deltachat/deltachat-core/blob/master/README.md#build).
 
-Now, you'll need the libpurple build dependencies:
+Now, you'll need some other build dependencies:
 
 ```
-sudo apt install libpurple-dev build-essential
+sudo apt install build-essential libpurple-dev libsoup2.4-dev libglib2.0-dev
 ```
 
 Finally, run `make` to create a `libdelta.so` file.
@@ -30,6 +30,11 @@ The easiest way to use this is to copy the `libdelta.so` file into
 `~/.purple/plugins`. When running pidgin, you'll now have the option to add
 a "Delta Chat" account.
 
+If it doesn't show up, chances are pidgin can't find the various shared
+libraries the .so depends on. You can run `ldd ~/.purple/plugins/libdelta.so`
+to confirm. I'll document fixing this after the build and install system is
+settled.
+
 At present, the "Username" and "Password" account fields correspond to email
 address and password, respectively. Many important settings also show up on the
 "Advanced" tab - if left blank, the plugin will attempt to automatically detect
@@ -39,10 +44,6 @@ the connection to work.
 Run pidgin with `--debug` to see interesting output.
 
 ## Limitations
-
-NOTHING IS DONE YET.
-
-Once that's fixed:
 
 There's no facility at present to import account keys, so sharing an email
 address between your mobile and desktop isn't amazing. It's high on the agenda.

@@ -1,0 +1,2 @@
+vendor/libetpan-1.8.tar.gz filter=lfs diff=lfs merge=lfs -text
+vendor/deltachat-core-master.tar.gz filter=lfs diff=lfs merge=lfs -text

@@ -1,1 +1,6 @@
 /libdelta.so
+/libetpan.so
+/libdeltachat.so
+/libnetpgp.so
+/vendor/deltachat-core-master
+/vendor/libetpan-1.8
