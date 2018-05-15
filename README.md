@@ -19,7 +19,7 @@ you'll need to build and install it according to
 Now, you'll need some other build dependencies:
 
 ```
-sudo apt install build-essential libpurple-dev libsoup2.4-dev libglib2.0-dev
+sudo apt install build-essential libpurple-dev libcurl4-openssl-dev libglib2.0-dev
 ```
 
 Finally, run `make` to create a `libdelta.so` file.
