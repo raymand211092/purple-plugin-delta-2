@@ -1,8 +1,12 @@
 #include <connection.h>
 #include <util.h>
 
+#include <string.h>
+
 #include <deltachat/mrmailbox.h>
-#include <libsoup/soup.h>
+
+#include <curl/curl.h>
+#include <curl/easy.h>
 
 #include "delta-connection.h"
 #include "libdelta.h"
@@ -40,23 +44,74 @@ _transpose_config(mrmailbox_t *mailbox, PurpleAccount *acct)
 	mrmailbox_set_config_int(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, smtp_port);
 }
 
+// This and WriteMemoryCallback are "borrowed" from https://curl.haxx.se/libcurl/c/getinmemory.html
+struct MemoryStruct {
+	char *memory;
+	size_t size;
+};
+
+static size_t
+WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+	size_t realsize = size * nmemb;
+	struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+
+	mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+	if(mem->memory == NULL) {
+		printf("not enough memory (realloc returned NULL)\n");
+		return 0;
+	}
+
+	memcpy(&(mem->memory[mem->size]), contents, realsize);
+	mem->size += realsize;
+	mem->memory[mem->size] = 0;
+
+	return realsize;
+}
+
 uintptr_t
 _http_get(const char *url)
 {
-	// FIXME: we could keep a soup session around for more than a single request
+	long status = 0;
 	uintptr_t out = 0;
-	guint status;
-	SoupSession *session = soup_session_new();
-	SoupMessage *msg = soup_message_new("GET", url);
+	CURL *curl = curl_easy_init();
+	CURLcode res;
 
-	status = soup_session_send_message(session, msg);
-
-	if (status >= 200 && status < 300) {
-		out = (uintptr_t)msg->response_body->data;
+	if (curl == NULL) {
+		return 0;
 	}
 
-//	g_free(msg); // FIXME: huge memory leak
-//	g_free(session);
+	struct MemoryStruct chunk;
+	chunk.memory = malloc(1);  /* will be grown as needed by the realloc above */
+	chunk.size = 0;    /* no data at this point */
+
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+	res = curl_easy_perform(curl);
+	if (res != CURLE_OK) {
+		printf("Failed to GET %s: %s\n", url, curl_easy_strerror(res));
+		goto err;
+	}
+
+	res = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+	if (res != CURLE_OK) {
+		printf("Failed to read response code for %s: %s\n", url, curl_easy_strerror(res));
+		goto err;
+	}
+
+	if (status < 200 || status > 299) {
+		printf("Non-success HTTP response code for %s: %lu\n", url, status);
+		goto err;
+	}
+
+	out = (uintptr_t)chunk.memory;
+
+err:
+	curl_easy_cleanup(curl);
+
+	// Don't free chunk.memory - that will be done by deltachat-core
 
 	return out;
 }

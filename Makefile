@@ -7,11 +7,11 @@ libdelta.so: *.c *.h Makefile
 		-std=c11 \
 		-shared \
 		-fpic \
-		$(shell pkg-config --cflags purple libsoup-2.4) \
+		$(shell pkg-config --cflags purple libcurl) \
 		-o libdelta.so \
 		*.c \
 		-shared \
-		$(shell pkg-config --libs purple libsoup-2.4) \
+		$(shell pkg-config --libs purple libcurl) \
 		-ldeltachat
 
 clean:
