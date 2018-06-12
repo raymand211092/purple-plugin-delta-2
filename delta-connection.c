@@ -12,7 +12,7 @@
 #include "libdelta.h"
 #include "util.h"
 
-void delta_recv_im(DeltaConnectionData *conn, uint32_t chat_id, uint32_t msg_id);
+void delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id);
 
 void
 _transpose_config(mrmailbox_t *mailbox, PurpleAccount *acct)
@@ -140,7 +140,9 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 		break;
 
 	case MR_EVENT_INCOMING_MSG:
-		delta_recv_im(conn, (uint32_t)data1, (uint32_t)data2);
+		// data1 is chat_id, which we don't seem to need yet.
+		// TODO: It may be needed for group chats
+		delta_recv_im(conn, (uint32_t)data2);
 		break;
 
 	// These are all to do with sending & receiving messages. The real meat of
@@ -221,7 +223,6 @@ delta_connection_start_login(PurpleConnection *pc)
 		purple_user_dir(), G_DIR_SEPARATOR_S, acct->username
 	);
 
-
 	if (!mrmailbox_open(mailbox, dbname, NULL)) {
 		debug("mrmailbox_open returned false...?");
 	}
@@ -246,6 +247,7 @@ delta_connection_start_login(PurpleConnection *pc)
 	}
 
 	purple_connection_set_state(pc, PURPLE_CONNECTED);
+
 	return;
 }
 
@@ -268,7 +270,7 @@ delta_send_im(PurpleConnection *pc, const char *who, const char *message, Purple
 }
 
 void
-delta_recv_im(DeltaConnectionData *conn, uint32_t chat_id, uint32_t msg_id)
+delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id)
 {
 	mrmailbox_t *mailbox = conn->mailbox;
 	g_assert(mailbox != NULL);
@@ -290,9 +292,6 @@ delta_recv_im(DeltaConnectionData *conn, uint32_t chat_id, uint32_t msg_id)
 
 	char *who = mrcontact_get_addr(contact);
 
-	// TODO: send this to the IM window instead
-	printf("who: %s, text: %s\n", who, text);
-	printf("message %d.%d: %s\n", chat_id, msg_id, text);
 	serv_got_im(pc, who, text, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_RAW, timestamp);
 
 	mrmailbox_markseen_msgs(mailbox, &msg_id, 1);

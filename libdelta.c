@@ -37,7 +37,7 @@ delta_login(PurpleAccount *acct)
 	delta_connection_new(pc);
 	delta_connection_start_login(pc);
 
-	pc->flags |= PURPLE_CONNECTION_HTML;
+	pc->flags |= PURPLE_CONNECTION_NO_BGCOLOR;
 }
 
 static void
