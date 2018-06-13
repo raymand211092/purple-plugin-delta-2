@@ -1,4 +1,5 @@
 #include <connection.h>
+#include <eventloop.h>
 #include <util.h>
 
 #include <string.h>
@@ -116,13 +117,63 @@ err:
 	return out;
 }
 
+typedef struct {
+	DeltaConnectionData *conn;
+	uint32_t msg_id;
+} ProcessRequest;
+
+gboolean
+delta_process(void *data)
+{
+	ProcessRequest *pr = (ProcessRequest *)data;
+	g_assert(pr->conn != NULL);
+
+	delta_recv_im(pr->conn, pr->msg_id);
+	free(data);
+
+	return FALSE;
+}
+
+void
+delta_fresh_messages(DeltaConnectionData *conn, mrmailbox_t *mailbox)
+{
+	g_assert(conn != NULL);
+	g_assert(mailbox != NULL);
+
+	// Spot any messages received while offline
+	mrarray_t *fresh_msgs = mrmailbox_get_fresh_msgs(mailbox);
+	size_t fresh_count = mrarray_get_cnt(fresh_msgs);
+
+	printf("*** fresh_count: %zu\n", fresh_count);
+
+	for(size_t i = 0; i < fresh_count; i++) {
+		ProcessRequest *pr = g_malloc(sizeof(ProcessRequest));
+		g_assert(pr != NULL);
+
+		pr->conn = conn;
+		pr->msg_id = mrarray_get_id(fresh_msgs, i);
+
+		purple_timeout_add(0, delta_process, pr);
+	}
+
+	free(fresh_msgs);
+
+	return;
+}
+
+// Do not call any libpurple functions in here, as it is not thread-safe and
+// events may be dispatched from any delta thread. Use
+// purple_timeout_add(0, callback, data) to run on the main thread instead
 uintptr_t
 my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t data2)
 {
 	DeltaConnectionData *conn = (DeltaConnectionData *)mrmailbox_get_userdata(mailbox);
 	g_assert(conn != NULL);
 
+	ProcessRequest *pr;
 	uintptr_t out = 0;
+
+	printf("my_delta_handler(mailbox, %d, %lu, %lu)\n", event, data1, data2);
 
 	switch (event) {
 	case MR_EVENT_INFO:
@@ -136,13 +187,17 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 		break;
 
 	case MR_EVENT_MSGS_CHANGED:
-		debug("TODO: received MR_EVENT_MSGS_CHANGED");
+		delta_fresh_messages(conn, mailbox);
 		break;
 
 	case MR_EVENT_INCOMING_MSG:
 		// data1 is chat_id, which we don't seem to need yet.
 		// TODO: It may be needed for group chats
-		delta_recv_im(conn, (uint32_t)data2);
+		pr = g_malloc(sizeof(ProcessRequest));
+		g_assert(pr != NULL);
+		pr->conn = conn;
+		pr->msg_id = (uint32_t)data2;
+		purple_timeout_add(0, delta_process, pr);
 		break;
 
 	// These are all to do with sending & receiving messages. The real meat of
@@ -162,7 +217,12 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 		out = _http_get((char *)data1);
 		break;
 	case MR_EVENT_IS_OFFLINE:
-		debug("TODO: MR_EVENT_IS_OFFLINE handling. Returning online for now\n");
+		if ( conn->pc == NULL || !PURPLE_CONNECTION_IS_CONNECTED(conn->pc) ) {
+			debug("Telling Delta we are offline\n");
+			out = 1;
+		} else {
+			debug("Telling Delta we are online\n");
+		}
 		break;
 	case MR_EVENT_GET_STRING:
 	case MR_EVENT_GET_QUANTITY_STRING:
@@ -224,7 +284,7 @@ delta_connection_start_login(PurpleConnection *pc)
 	);
 
 	if (!mrmailbox_open(mailbox, dbname, NULL)) {
-		debug("mrmailbox_open returned false...?");
+		debug("mrmailbox_open returned false...?\n");
 	}
 
 	conn->mailbox = mailbox;
@@ -286,7 +346,7 @@ delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id)
 
 	mrcontact_t *contact = mrmailbox_get_contact(mailbox, contact_id);
 	if (contact == NULL) {
-		debug("Unknown contact! FIXME!");
+		debug("Unknown contact! FIXME!\n");
 		goto out;
 	}
 
