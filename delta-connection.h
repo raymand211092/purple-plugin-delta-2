@@ -2,13 +2,14 @@
 #define DELTA_CONNECTION_H
 
 #include <glib.h>
+#include <deltachat/deltachat.h>
 
 struct _PurpleConnection;
-struct _mrmailbox;
+//struct _dc_context_t;
 
 typedef struct _DeltaConnectionData {
 	struct _PurpleConnection *pc;
-	struct _mrmailbox *mailbox;
+	dc_context_t *mailbox;
 } DeltaConnectionData;
 
 #define MAX_DELTA_CONFIGURE 901

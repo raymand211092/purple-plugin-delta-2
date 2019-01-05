@@ -4,8 +4,6 @@
 
 #include <string.h>
 
-#include <deltachat/mrmailbox.h>
-
 #include <curl/curl.h>
 #include <curl/easy.h>
 
@@ -16,7 +14,7 @@
 void delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id);
 
 void
-_transpose_config(mrmailbox_t *mailbox, PurpleAccount *acct)
+_transpose_config(dc_context_t *mailbox, PurpleAccount *acct)
 {
 	const char *addr = acct->username;
 	const char *display = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, NULL);
@@ -24,25 +22,25 @@ _transpose_config(mrmailbox_t *mailbox, PurpleAccount *acct)
 	const char *imap_host = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, NULL);
 	const char *imap_user = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_USER, NULL);
 	const char *imap_pass = purple_account_get_password(acct);
-	int imap_port = purple_account_get_int(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, DEFAULT_IMAP_PORT);
+	const char *imap_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, DEFAULT_IMAP_PORT);
 
 	const char *smtp_host = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, NULL);
 	const char *smtp_user = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_USER, NULL);
 	const char *smtp_pass = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_PASS, NULL);
-	int smtp_port = purple_account_get_int(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, DEFAULT_SMTP_PORT);
+	const char *smtp_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, DEFAULT_SMTP_PORT);
 
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_ADDR, addr);
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, display);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_ADDR, addr);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, display);
 
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, imap_host);
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_USER, imap_user);
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_PASS, imap_pass);
-	mrmailbox_set_config_int(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, imap_port);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, imap_host);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_USER, imap_user);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_PASS, imap_pass);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, imap_port);
 
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, smtp_host);
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_USER, smtp_user);
-	mrmailbox_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_PASS, smtp_pass);
-	mrmailbox_set_config_int(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, smtp_port);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, smtp_host);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_USER, smtp_user);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_PASS, smtp_pass);
+	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, smtp_port);
 }
 
 // This and WriteMemoryCallback are "borrowed" from https://curl.haxx.se/libcurl/c/getinmemory.html
@@ -135,14 +133,14 @@ delta_process(void *data)
 }
 
 void
-delta_fresh_messages(DeltaConnectionData *conn, mrmailbox_t *mailbox)
+delta_fresh_messages(DeltaConnectionData *conn, dc_context_t *mailbox)
 {
 	g_assert(conn != NULL);
 	g_assert(mailbox != NULL);
 
 	// Spot any messages received while offline
-	mrarray_t *fresh_msgs = mrmailbox_get_fresh_msgs(mailbox);
-	size_t fresh_count = mrarray_get_cnt(fresh_msgs);
+	dc_array_t *fresh_msgs = dc_get_fresh_msgs(mailbox);
+	size_t fresh_count = dc_array_get_cnt(fresh_msgs);
 
 	printf("*** fresh_count: %zu\n", fresh_count);
 
@@ -151,7 +149,7 @@ delta_fresh_messages(DeltaConnectionData *conn, mrmailbox_t *mailbox)
 		g_assert(pr != NULL);
 
 		pr->conn = conn;
-		pr->msg_id = mrarray_get_id(fresh_msgs, i);
+		pr->msg_id = dc_array_get_id(fresh_msgs, i);
 
 		purple_timeout_add(0, delta_process, pr);
 	}
@@ -165,9 +163,9 @@ delta_fresh_messages(DeltaConnectionData *conn, mrmailbox_t *mailbox)
 // events may be dispatched from any delta thread. Use
 // purple_timeout_add(0, callback, data) to run on the main thread instead
 uintptr_t
-my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t data2)
+my_delta_handler(dc_context_t* mailbox, int event, uintptr_t data1, uintptr_t data2)
 {
-	DeltaConnectionData *conn = (DeltaConnectionData *)mrmailbox_get_userdata(mailbox);
+	DeltaConnectionData *conn = (DeltaConnectionData *)dc_get_userdata(mailbox);
 	g_assert(conn != NULL);
 
 	ProcessRequest *pr;
@@ -176,21 +174,21 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 	printf("my_delta_handler(mailbox, %d, %lu, %lu)\n", event, data1, data2);
 
 	switch (event) {
-	case MR_EVENT_INFO:
+	case DC_EVENT_INFO:
 		printf("INFO: %s\n", (char *)data2);
 		break;
-	case MR_EVENT_WARNING:
+	case DC_EVENT_WARNING:
 		printf("WARNING: %s\n", (char *)data2);
 		break;
-	case MR_EVENT_ERROR:
+	case DC_EVENT_ERROR:
 		printf("ERROR: %d: %s\n", (int)data1, (char *)data2);
 		break;
 
-	case MR_EVENT_MSGS_CHANGED:
+	case DC_EVENT_MSGS_CHANGED:
 		delta_fresh_messages(conn, mailbox);
 		break;
 
-	case MR_EVENT_INCOMING_MSG:
+	case DC_EVENT_INCOMING_MSG:
 		// data1 is chat_id, which we don't seem to need yet.
 		// TODO: It may be needed for group chats
 		pr = g_malloc(sizeof(ProcessRequest));
@@ -202,21 +200,21 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 
 	// These are all to do with sending & receiving messages. The real meat of
 	// the event loop
-	case MR_EVENT_MSG_DELIVERED:
-	case MR_EVENT_MSG_READ:
-	case MR_EVENT_CHAT_MODIFIED:
-	case MR_EVENT_CONTACTS_CHANGED:
+	case DC_EVENT_MSG_DELIVERED:
+	case DC_EVENT_MSG_READ:
+	case DC_EVENT_CHAT_MODIFIED:
+	case DC_EVENT_CONTACTS_CHANGED:
 		debug("TODO!\n");
 		break;
 
-	case MR_EVENT_CONFIGURE_PROGRESS:
+	case DC_EVENT_CONFIGURE_PROGRESS:
 		purple_connection_update_progress(conn->pc, "Connecting...", (int)data1, MAX_DELTA_CONFIGURE);
 		break;
-	case MR_EVENT_HTTP_GET:
+	case DC_EVENT_HTTP_GET:
 		printf("HTTP GET requested: %s\n", (char *)data1);
 		out = _http_get((char *)data1);
 		break;
-	case MR_EVENT_IS_OFFLINE:
+	case DC_EVENT_IS_OFFLINE:
 		if ( conn->pc == NULL || !PURPLE_CONNECTION_IS_CONNECTED(conn->pc) ) {
 			debug("Telling Delta we are offline\n");
 			out = 1;
@@ -224,9 +222,7 @@ my_delta_handler(mrmailbox_t* mailbox, int event, uintptr_t data1, uintptr_t dat
 			debug("Telling Delta we are online\n");
 		}
 		break;
-	case MR_EVENT_GET_STRING:
-	case MR_EVENT_GET_QUANTITY_STRING:
-	case MR_EVENT_WAKE_LOCK:
+	case DC_EVENT_GET_STRING:
 		break;
 	default:
 		printf("Unknown event: %d\n", event);
@@ -257,10 +253,9 @@ delta_connection_free(PurpleConnection *pc)
 	purple_connection_set_protocol_data(pc, NULL);
 
 	if (conn->mailbox != NULL) {
-		mrmailbox_stop_ongoing_process(conn->mailbox);
-		mrmailbox_disconnect(conn->mailbox);
-		mrmailbox_close(conn->mailbox);
-		mrmailbox_unref(conn->mailbox);
+		dc_stop_ongoing_process(conn->mailbox);
+		dc_close(conn->mailbox);
+		dc_context_unref(conn->mailbox);
 	}
 
 	// TODO: free resources as they are added to DeltaConnectionData
@@ -276,15 +271,15 @@ delta_connection_start_login(PurpleConnection *pc)
 	char dbname[1024];
 	PurpleAccount *acct = pc->account;
 	DeltaConnectionData *conn = purple_connection_get_protocol_data(pc);
-	mrmailbox_t *mailbox = mrmailbox_new(my_delta_handler, conn, NULL);
+	dc_context_t *mailbox = dc_context_new(my_delta_handler, conn, NULL);
 
 	g_snprintf(
 		dbname, 1024, "%s%sdelta_db-%s",
 		purple_user_dir(), G_DIR_SEPARATOR_S, acct->username
 	);
 
-	if (!mrmailbox_open(mailbox, dbname, NULL)) {
-		debug("mrmailbox_open returned false...?\n");
+	if (!dc_open(mailbox, dbname, NULL)) {
+		debug("dc_open returned false...?\n");
 	}
 
 	conn->mailbox = mailbox;
@@ -294,19 +289,12 @@ delta_connection_start_login(PurpleConnection *pc)
 	purple_connection_set_state(pc, PURPLE_CONNECTING);
 	purple_connection_update_progress(pc, "Connecting...", 1, MAX_DELTA_CONFIGURE);
 
-	if (mrmailbox_is_configured(mailbox)) {
-		mrmailbox_connect(mailbox);
-	} else if (!mrmailbox_configure_and_connect(mailbox)) {
-		char *info = mrmailbox_get_info(mailbox);
-		debug(info);
-		g_free(info);
-
-		purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR);
-		purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-		return;
+	if (!dc_is_configured(mailbox)) {
+		dc_configure(mailbox);
 	}
 
-	purple_connection_set_state(pc, PURPLE_CONNECTED);
+// FIXME: ensure this is set by the connection handler
+//	purple_connection_set_state(pc, PURPLE_CONNECTED);
 
 	return;
 }
@@ -319,44 +307,44 @@ delta_send_im(PurpleConnection *pc, const char *who, const char *message, Purple
 	DeltaConnectionData *conn = (DeltaConnectionData *)purple_connection_get_protocol_data(pc);
 	g_assert(conn != NULL);
 
-	mrmailbox_t *mailbox = conn->mailbox;
+	dc_context_t *mailbox = conn->mailbox;
 	g_assert(mailbox != NULL);
 
-	uint32_t contact_id = mrmailbox_create_contact(mailbox, NULL, who);
-	uint32_t chat_id = mrmailbox_create_chat_by_contact_id(mailbox, contact_id);
+	uint32_t contact_id = dc_create_contact(mailbox, NULL, who);
+	uint32_t chat_id = dc_create_chat_by_contact_id(mailbox, contact_id);
 
-	mrmailbox_send_text_msg(mailbox, chat_id, message);
+	dc_send_text_msg(mailbox, chat_id, message);
 	return 1; // success; echo the message to the chat window
 }
 
 void
 delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id)
 {
-	mrmailbox_t *mailbox = conn->mailbox;
+	dc_context_t *mailbox = conn->mailbox;
 	g_assert(mailbox != NULL);
 
 	PurpleConnection *pc = conn->pc;
 	g_assert(pc != NULL);
 
-	mrmsg_t* msg = mrmailbox_get_msg(mailbox, msg_id);
+	dc_msg_t* msg = dc_get_msg(mailbox, msg_id);
 
-	time_t timestamp = mrmsg_get_timestamp(msg);
-	char *text = mrmsg_get_text(msg);
-	uint32_t contact_id  = mrmsg_get_from_id(msg);
+	time_t timestamp = dc_msg_get_timestamp(msg);
+	char *text = dc_msg_get_text(msg);
+	uint32_t contact_id  = dc_msg_get_from_id(msg);
 
-	mrcontact_t *contact = mrmailbox_get_contact(mailbox, contact_id);
+	dc_contact_t *contact = dc_get_contact(mailbox, contact_id);
 	if (contact == NULL) {
 		debug("Unknown contact! FIXME!\n");
 		goto out;
 	}
 
-	char *who = mrcontact_get_addr(contact);
+	char *who = dc_contact_get_addr(contact);
 
 	serv_got_im(pc, who, text, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_RAW, timestamp);
 
-	mrmailbox_markseen_msgs(mailbox, &msg_id, 1);
+	dc_markseen_msgs(mailbox, &msg_id, 1);
 	g_free(who);
 out:
 	g_free(text);
-	mrmsg_unref(msg);
+	dc_msg_unref(msg);
 }

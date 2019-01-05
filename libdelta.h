@@ -10,8 +10,8 @@
 	OPT_PROTO_CHAT_TOPIC | \
 	OPT_PROTO_IM_IMAGE
 
-#define DEFAULT_SMTP_PORT 0
-#define DEFAULT_IMAP_PORT 0
+#define DEFAULT_SMTP_PORT "0"
+#define DEFAULT_IMAP_PORT "0"
 
 
 // These two will instead be the pidgin "username" and "password" options that
