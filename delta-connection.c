@@ -3,6 +3,7 @@
 #include <util.h>
 
 #include <string.h>
+#include <pthread.h>
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -13,6 +14,38 @@
 
 void delta_recv_im(DeltaConnectionData *conn, uint32_t msg_id);
 
+void *imap_thread_func(void *delta_connection_data)
+{
+	DeltaConnectionData *conn = (DeltaConnectionData *)delta_connection_data;
+	g_assert(conn != NULL);
+
+	dc_context_t *mailbox = conn->mailbox;
+	g_assert(mailbox != NULL);
+
+	while (conn->runthreads) {
+		dc_perform_imap_jobs(mailbox);
+		dc_perform_imap_fetch(mailbox);
+		dc_perform_imap_idle(mailbox);
+	}
+
+	return NULL;
+}
+void *smtp_thread_func(void *delta_connection_data)
+{
+	DeltaConnectionData *conn = (DeltaConnectionData *)delta_connection_data;
+	g_assert(conn != NULL);
+
+	dc_context_t *mailbox = conn->mailbox;
+	g_assert(mailbox != NULL);
+
+	while (conn->runthreads) {
+		dc_perform_smtp_jobs(mailbox);
+		dc_perform_smtp_idle(mailbox);
+	}
+
+	return NULL;
+}
+
 void
 _transpose_config(dc_context_t *mailbox, PurpleAccount *acct)
 {
@@ -22,12 +55,12 @@ _transpose_config(dc_context_t *mailbox, PurpleAccount *acct)
 	const char *imap_host = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, NULL);
 	const char *imap_user = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_USER, NULL);
 	const char *imap_pass = purple_account_get_password(acct);
-	const char *imap_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, DEFAULT_IMAP_PORT);
+	const char *imap_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, NULL);
 
 	const char *smtp_host = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, NULL);
 	const char *smtp_user = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_USER, NULL);
 	const char *smtp_pass = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_PASS, NULL);
-	const char *smtp_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, DEFAULT_SMTP_PORT);
+	const char *smtp_port = purple_account_get_string(acct, PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, NULL);
 
 	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_ADDR, addr);
 	dc_set_config(mailbox, PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, display);
@@ -174,6 +207,9 @@ my_delta_handler(dc_context_t* mailbox, int event, uintptr_t data1, uintptr_t da
 	printf("my_delta_handler(mailbox, %d, %lu, %lu)\n", event, data1, data2);
 
 	switch (event) {
+	case DC_EVENT_SMTP_MESSAGE_SENT:
+	case DC_EVENT_IMAP_CONNECTED:
+	case DC_EVENT_SMTP_CONNECTED:
 	case DC_EVENT_INFO:
 		printf("INFO: %s\n", (char *)data2);
 		break;
@@ -181,6 +217,7 @@ my_delta_handler(dc_context_t* mailbox, int event, uintptr_t data1, uintptr_t da
 		printf("WARNING: %s\n", (char *)data2);
 		break;
 	case DC_EVENT_ERROR:
+	case DC_EVENT_ERROR_NETWORK:
 		printf("ERROR: %d: %s\n", (int)data1, (char *)data2);
 		break;
 
@@ -209,6 +246,9 @@ my_delta_handler(dc_context_t* mailbox, int event, uintptr_t data1, uintptr_t da
 
 	case DC_EVENT_CONFIGURE_PROGRESS:
 		purple_connection_update_progress(conn->pc, "Connecting...", (int)data1, MAX_DELTA_CONFIGURE);
+		if ((int)data1 == MAX_DELTA_CONFIGURE) {
+			purple_connection_set_state(conn->pc, PURPLE_CONNECTED);
+		}
 		break;
 	case DC_EVENT_HTTP_GET:
 		printf("HTTP GET requested: %s\n", (char *)data1);
@@ -250,13 +290,25 @@ delta_connection_free(PurpleConnection *pc)
 
 	g_assert(conn != NULL);
 
-	purple_connection_set_protocol_data(pc, NULL);
-
+	conn->runthreads = 0;
+	
 	if (conn->mailbox != NULL) {
+		dc_maybe_network(conn->mailbox);
+
+		// TODO: correctly handle join failing
+		if (pthread_join(conn->imap_thread, NULL) != 0) {
+			debug("joining imap thread failed!\n");
+		}
+		if (pthread_join(conn->smtp_thread, NULL) != 0) {
+			debug("joining smtp thread failed!\n");
+		}
+
 		dc_stop_ongoing_process(conn->mailbox);
 		dc_close(conn->mailbox);
 		dc_context_unref(conn->mailbox);
 	}
+
+	purple_connection_set_protocol_data(pc, NULL);
 
 	// TODO: free resources as they are added to DeltaConnectionData
 	conn->pc = NULL;
@@ -283,18 +335,22 @@ delta_connection_start_login(PurpleConnection *pc)
 	}
 
 	conn->mailbox = mailbox;
-
 	_transpose_config(mailbox, acct);
+
+	conn->runthreads = 1;
+	pthread_create(&conn->imap_thread, NULL, imap_thread_func, conn);
+	pthread_create(&conn->smtp_thread, NULL, smtp_thread_func, conn);
 
 	purple_connection_set_state(pc, PURPLE_CONNECTING);
 	purple_connection_update_progress(pc, "Connecting...", 1, MAX_DELTA_CONFIGURE);
 
-	if (!dc_is_configured(mailbox)) {
+	if (dc_is_configured(mailbox)) {
+		purple_connection_set_state(conn->pc, PURPLE_CONNECTED);
+	} else {
 		dc_configure(mailbox);
 	}
 
-// FIXME: ensure this is set by the connection handler
-//	purple_connection_set_state(pc, PURPLE_CONNECTED);
+	dc_maybe_network(mailbox);
 
 	return;
 }
