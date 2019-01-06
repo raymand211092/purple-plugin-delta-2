@@ -72,12 +72,6 @@ pwd_opt(const char *text, const char *name, const char *def)
 	return option;
 }
 
-static PurpleAccountOption *
-int_opt(const char *text, const char *name, int def)
-{
-	return purple_account_option_int_new(text, name, def);
-}
-
 static void
 delta_init_plugin(PurplePlugin *plugin)
 {
@@ -89,7 +83,7 @@ delta_init_plugin(PurplePlugin *plugin)
 	opts = g_list_prepend(opts, str_opt("Display Name", PLUGIN_ACCOUNT_OPT_DISPLAY_NAME, NULL));
 
 	opts = g_list_prepend(opts, str_opt("IMAP Server Host", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_HOST, NULL));
-	opts = g_list_prepend(opts, int_opt("IMAP Server Port", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, DEFAULT_IMAP_PORT));
+	opts = g_list_prepend(opts, str_opt("IMAP Server Port", PLUGIN_ACCOUNT_OPT_IMAP_SERVER_PORT, NULL));
 	opts = g_list_prepend(opts, str_opt("IMAP Username", PLUGIN_ACCOUNT_OPT_IMAP_USER, NULL));
 
 
@@ -99,7 +93,7 @@ delta_init_plugin(PurplePlugin *plugin)
 	// opts = g_list_prepend(opts, pwd_opt("IMAP Password", PLUGIN_ACCOUNT_OPT_IMAP_PASS, ""));
 
 	opts = g_list_prepend(opts, str_opt("SMTP Server Host", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_HOST, NULL));
-	opts = g_list_prepend(opts, int_opt("SMTP Server Port", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, DEFAULT_SMTP_PORT));
+	opts = g_list_prepend(opts, str_opt("SMTP Server Port", PLUGIN_ACCOUNT_OPT_SMTP_SERVER_PORT, NULL));
 	opts = g_list_prepend(opts, str_opt("SMTP Username", PLUGIN_ACCOUNT_OPT_SMTP_USER, NULL));
 	opts = g_list_prepend(opts, pwd_opt("SMTP Password", PLUGIN_ACCOUNT_OPT_SMTP_PASS, NULL));
 

@@ -3,25 +3,24 @@ Debian 9:
   stage: build
   image: debian:stretch
   script:
+    # deltachat-core needs a later version of meson, fortunately it's in stretch-backports
+    - echo 'deb http://httpredir.debian.org/debian/ stretch-backports main' > /etc/apt/sources.list.d/stretch-backports.list
     - apt update
     # libetpan
     # FIXME: libetpan 1.16 is available in Debian, but we need 1.17+: https://github.com/deltachat/deltachat-core/issues/157
-    # TODO: it can take libcurl as well. Do we need it?
-    - apt install --no-install-recommends -yy build-essential autoconf automake libtool libdb-dev libexpat1-dev libsasl2-dev libssl1.0-dev
+    - apt install --no-install-recommends -yy -t stretch-backports build-essential autoconf automake libtool libdb-dev libexpat1-dev libsasl2-dev libssl1.0-dev
     - cd vendor && tar -xvzf libetpan-1.8.tar.gz && cd libetpan-1.8 && ./autogen.sh && ./configure && make && make install && cd ../..
     - cp /usr/local/lib/libetpan.so libetpan.so
     # deltachat-core
-    - apt install --no-install-recommends -yy meson ninja-build pkg-config zlib1g-dev libsqlite3-dev libsasl2-dev libssl1.0-dev libbz2-dev
-    - cd vendor && tar -xvzf deltachat-core-master.tar.gz && cd deltachat-core-master && mkdir builddir && cd builddir && meson && ninja && ninja install && cd ../../..
+    - apt install --no-install-recommends -t stretch-backports -yy meson ninja-build pkg-config zlib1g-dev liblockfile-dev libsqlite3-dev libsasl2-dev libssl1.0-dev libbz2-dev
+    - cd vendor && tar -xvzf deltachat-core-0.35.0.tar.gz && cd deltachat-core-0.35.0 && mkdir builddir && cd builddir && meson && ninja && ninja install && cd ../../..
     - cp /usr/local/lib/x86_64-linux-gnu/libdeltachat.so libdeltachat.so
-    - cp /usr/local/lib/x86_64-linux-gnu/libnetpgp.so libnetpgp.so
     # purple-plugin-delta
-    - apt install --no-install-recommends -yy libpurple-dev libcurl4-openssl-dev libglib2.0-dev
+    - apt install --no-install-recommends -t stretch-backports -yy libpurple-dev libcurl4-openssl-dev libglib2.0-dev
     - make
   artifacts:
     paths:
       - libetpan.so
       - libdeltachat.so
-      - libnetpgp.so
       - libdelta.so
 

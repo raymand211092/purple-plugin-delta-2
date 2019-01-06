@@ -2,16 +2,23 @@
 #define DELTA_CONNECTION_H
 
 #include <glib.h>
+#include <deltachat/deltachat.h>
+#include <pthread.h>
 
 struct _PurpleConnection;
-struct _mrmailbox;
 
 typedef struct _DeltaConnectionData {
 	struct _PurpleConnection *pc;
-	struct _mrmailbox *mailbox;
+	dc_context_t *mailbox;
+
+	// Set to 0 to convince threads to exit
+	int runthreads;
+
+	pthread_t imap_thread;
+	pthread_t smtp_thread;
 } DeltaConnectionData;
 
-#define MAX_DELTA_CONFIGURE 901
+#define MAX_DELTA_CONFIGURE 1000
 
 void delta_connection_new(struct _PurpleConnection *pc);
 void delta_connection_free(struct _PurpleConnection *pc);
