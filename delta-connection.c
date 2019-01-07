@@ -344,12 +344,7 @@ delta_connection_start_login(PurpleConnection *pc)
 	purple_connection_set_state(pc, PURPLE_CONNECTING);
 	purple_connection_update_progress(pc, "Connecting...", 1, MAX_DELTA_CONFIGURE);
 
-	if (dc_is_configured(mailbox)) {
-		purple_connection_set_state(conn->pc, PURPLE_CONNECTED);
-	} else {
-		dc_configure(mailbox);
-	}
-
+	dc_configure(mailbox);
 	dc_maybe_network(mailbox);
 
 	return;
