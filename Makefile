@@ -1,18 +1,28 @@
 CC ?= gcc
 PREFIX ?= /usr/local
 
-libdelta.so: *.c *.h Makefile
+PKG_CONFIG ?= pkg-config
+LIB_TARGET = libdelta.so
+LIB_DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=plugindir purple`
+
+$(LIB_TARGET): *.c *.h Makefile
 	$(CC) -C \
 		-Wall -Wextra -Werror \
 		-std=c11 \
 		-shared \
 		-fpic \
-		$(shell pkg-config --cflags purple libcurl) \
-		-o libdelta.so \
+		$(shell $(PKG_CONFIG) --cflags purple libcurl) \
+		-o $(LIB_TARGET) \
 		*.c \
 		-shared \
-		$(shell pkg-config --libs purple libcurl) \
+		$(shell $(PKG_CONFIG) --libs purple libcurl) \
 		-ldeltachat
 
+install:
+	install -D $(LIB_TARGET) $(LIB_DEST)
+
+uninstall:
+	rm -f $(LIB_DEST)/$(LIB_TARGET)
+
 clean:
-	rm libdelta.so
+	rm $(LIB_TARGET)
